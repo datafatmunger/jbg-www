@@ -78,11 +78,21 @@ function wrapSpans() {
 
 function initEvents() {
   document.querySelectorAll('span').forEach(n => {
+
+    // Browser - JBG
     n.addEventListener('mouseover', e => {
       e.target.className = randomFont()
       note()
       showImage(e.target)
     }) 
+
+    // Mobile - JBG
+    n.addEventListener('touchmove', e => {
+      e.target.className = randomFont()
+      note()
+      showImage(e.target)
+    }) 
+
     n.className = randomFont()
     n.style.color = randomColor()
   })
