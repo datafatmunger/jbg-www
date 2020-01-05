@@ -32,6 +32,7 @@ body {
 section, footer {
   position: relative;
   margin: 1.3em;
+  margin-bottom: 3em;
 }
 
 a {
@@ -41,10 +42,28 @@ a {
 
 footer p {
   text-align: right;
+  margin-right: 0;
 }
 
 p {
   text-shadow: 1px 1px 2px #000; 
+}
+
+h1 {
+  font-size: 3em;
+  margin-left: 21px;
+}
+
+h2 {
+  margin-bottom: 0.4em;
+}
+
+.desc {
+  margin-bottom: 0.7em;
+}
+
+.stack {
+  margin-top: 0.7em;
 }
 
 .imgs {
@@ -66,4 +85,10 @@ p {
 .hack { font-family: Hack; }
 .troja { font-family: TrojaMon; }
 
+@media only screen and (min-width: 600px) {
 
+h1, h2, p {
+  margin-right: 17em;
+}
+
+}
