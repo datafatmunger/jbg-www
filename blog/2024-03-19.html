@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+    <head>
+	<title>James Bryan Graves - Personal blog</title> 
+	<meta name="description" content="Executive, manager &amp; technology lead @ SMEs &amp; startups" />
+	<meta name="robots" content="index, archive" />
+    <link rel="stylesheet" type="text/css" href="../style.css">
+    </head>
+    <body>
+        <nav>
+            <ul>
+                <li><a href="../index.html">./</a></li>
+                <li><a href="./index.html">./blog</a></li>
+            </ul>
+        </nav>
+        <main>
+            <p>Personal blog of <a href="../index.html">James Bryan Graves</a></a><br>
+                CTO, Executive, manager &amp; technology lead @ SMEs &amp; startups</p>
+            <article>
+                <h2>2024-03-19 (de)</h2>
+                <p>Ich habe die LinkedIn-Plattform vor mehr als 10 Jahen verlassen.
+                    Letzte Woche war ich neugierig, wie schwierig es wäre, dort ein Netzwerk wieder aufzubauen.
+                    Ich habe sofort damit angefangen, alte Kollegen hinzuzufügen, an die ich mich erinnern konnte.
+                    Das ist überraschend schwierig.</p>
+                <p><a href="https://www.linkedin.com/help/linkedin/answer/a544897">LinkedIn erlaubt es nicht mehr, Ihre Inboxen zu verbinden.</a></p>
+                <p>Also habe ich angefangen, durch meine E-Mails zu scrollen, aber ich habe viele E-Mail-Adressen,
+                    darunter einige von Gmail und eine Handvoll von Google Workspace basierten Inboxen von meinen Unternehmen.
+                    Ich habe meine erste Gmail vor 20 Jahren verschickt. Zu langsam.
+                </p>
+                <p>Google bietet eine Skripting-Umgebung auf seiner Plattform hier an:
+                    <a href="https://script.google.com/">https://script.google.com/</a>.
+                    Ich habe ein Skript geschrieben, um eine Tabelle mit Kontakten zu erstellen, einschließlich einer Anzahl von Auftreten, damit ich nach denen sortieren konnte,
+                    die ich am häufigsten kontaktiert habe.
+                </p>
+                <pre>
+                    <code>
+function myFunction() {
+    var totalCount = 1000
+    var pageSize = 500
+    var spreadsheetOffset = 1
+    for(var offset = 0; offset < totalCount; offset += pageSize) {
+        var threads = GmailApp.getInboxThreads(offset, 500)
+        Logger.log(`Offset: ${offset}, Spreadsheet Offset: ${spreadsheetOffset}`)
+    
+        var messages = GmailApp.getMessagesForThreads(threads);
+        var emailArray = [];
+        var emailDict = {}
+    
+        // get array of email addresses - JBG
+        messages.forEach(function(message) {
+            message.forEach(function(d) {
+            emailArray.push(d.getFrom(), d.getTo());
+            });
+        });
+    
+        for(var i = 0; i < emailArray.length; i++) {
+            var el = emailArray[i]
+            var name = ""
+            var email = ""
+    
+            var matches = el.match(/\s*"?([^"]*)"?\s+<(.+)>/);
+            if(matches) {
+                name = matches[1]; 
+                email = matches[2];
+            } else {
+                email = el;
+            }
+            if(email.toLowerCase().indexOf("jamesbryangraves@gmail.com") != -1) {
+                // Do nothing - JBG
+            } else if(emailDict[email]) {
+                emailDict[email].count++
+            } else {
+                emailDict[email] = {email, name, count: 1}
+            }
+        }
+    
+        const cells = Object.values(emailDict).map(o => [o.name, o.email, o.count])
+    
+        var ss = SpreadsheetApp.openById("19bfPH0...");
+        ss.getRange(`Gmail!A${spreadsheetOffset}:C${spreadsheetOffset+cells.length-1}`).setValues(cells)
+        spreadsheetOffset += cells.length
+    }
+}
+                    </code>
+                </pre>
+                <p>Das funktioniert großartig, abgesehen davon, dass ich zu viele E-Mails habe und die Laufzeit die von Google für seine Skripting-Plattform angebotene überschreitet.
+                    Etwas für einen anderen Tag. Ich muss einen API-Token erstellen und dies in Node.js ausführen.
+                </p>
+                <p>LinkedIn erlaubt auch nur 100 neue "Connections" pro Woche. Meine Konversionsrate beträgt heute 75%.</p>
+            </article>
+        </main>
+        <!-- Google tag (gtag.js) -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=UA-163600486-1"></script>
+        <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'UA-163600486-1');
+        </script>
+    </body>
+</html>
