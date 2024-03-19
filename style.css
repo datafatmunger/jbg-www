@@ -16,7 +16,7 @@ section {
 }
 
 article {
-    width: 89%;
+    width: 74%;
 }
 
 h3 {
@@ -44,4 +44,11 @@ nav ul li a {
 
 nav ul li a:hover {
     text-decoration: underline;
+}
+
+pre {
+    font-family: monospace;
+    background-color: black;
+    color: white;
+    overflow-x: scroll;
 }
