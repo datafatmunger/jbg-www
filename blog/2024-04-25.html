@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+    <head>
+	<title>James Bryan Graves - Personal blog</title> 
+	<meta name="description" content="Executive, coder, manager &amp; technology lead @ SMEs &amp; startups" />
+	<meta name="robots" content="index, archive" />
+    <link rel="stylesheet" type="text/css" href="../style.css">
+    </head>
+    <body>
+        <nav>
+            <ul>
+                <li><a href="../index.html">./</a></li>
+                <li><a href="./index.html">./blog</a></li>
+            </ul>
+        </nav>
+        <main>
+            <p>Personal blog of <a href="../index.html">James Bryan Graves</a></a><br>
+                CTO, coder, manager &amp; technology lead @ SMEs &amp; startups</p>
+            <article>
+                <h2>2024-04-25 (en_US)</h2>
+                <p>The following question was asked in the Quantum Computing Workshop series I'm participating in:</p>
+                <p>"I am interested in exploring GPU programming, particularly for demonstrating accelerating matrix computations on my laptop...
+                    I'm interested in learning how to write code using Numba to offload computations to the GPU...
+                    If you have experience or expertise in GPU programming (with Numba), I would greatly appreciate any advice, resources, or tips you could provide."</p>
+                <p>I put the following examples quickly together.</p>
+                <p>For Nvidia you are going to need cuda.  I also enjoy playing video games (on a Nvidia RTX 3070),
+                    and I have currently have a running CUDA toolchain with Python (I was using for AI prototyping). ON WINDOWS.</p>
+                <p>With toolchain I have currently running, I was able to quickly test the following code (mostly courtesy of GPT,
+                    but I believe proves the toolchain is working).</p>
+                <pre>
+                    <code>
+import numpy as np
+from numba import jit, cuda
+
+# Define a function that will be accelerated by CUDA
+@cuda.jit
+def add_kernel(x, y, out):
+    tx = cuda.threadIdx.x
+    ty = cuda.blockIdx.x
+    bw = cuda.blockDim.x
+    idx = tx + ty * bw
+    if idx < out.size:
+        out[idx] = x[idx] + y[idx]
+
+# Main function to call the CUDA kernel
+def add_on_gpu(x, y):
+    # Allocate memory on the device
+    d_x = cuda.to_device(x)
+    d_y = cuda.to_device(y)
+    d_out = cuda.device_array_like(x)
+
+    # Configure the kernel
+    threads_per_block = 256
+    blocks_per_grid = (x.size + (threads_per_block - 1)) // threads_per_block
+
+    # Launch the kernel
+    add_kernel[blocks_per_grid, threads_per_block](d_x, d_y, d_out)
+
+    # Copy the result back to the host
+    return d_out.copy_to_host()
+
+# Test the GPU-accelerated function
+if __name__ == '__main__':
+    N = 1000000
+    x = np.arange(N)
+    y = np.ones(N)
+    result = add_on_gpu(x, y)
+    print(result)
+                    </code>
+                </pre>
+                <p>I decided to take this 1 step further,
+                    and put 1 million "qubits" into superposition with a hadamard operation on the GPU.</p>
+                <pre>
+                    <code>
+import numpy as np
+from numba import jit, cuda, float64
+
+# Define the Hadamard gate matrix
+hadamard = np.array([[1, 1], [1, -1]]) / np.sqrt(2)
+
+# Define a function that will be accelerated by CUDA
+@cuda.jit
+def hadamard_gate_kernel(qubits, out):
+    tx = cuda.threadIdx.x
+    ty = cuda.blockIdx.x
+    bw = cuda.blockDim.x
+    idx = tx + ty * bw
+    if idx < out.size:
+        qubit = qubits[idx]
+        result = cuda.local.array(2, dtype=float64)
+        result[0] = hadamard[0, 0] * qubit[0] + hadamard[0, 1] * qubit[1]
+        result[1] = hadamard[1, 0] * qubit[0] + hadamard[1, 1] * qubit[1]
+        out[idx][0] = result[0]
+        out[idx][1] = result[1]
+
+# Main function to call the CUDA kernel
+def apply_hadamard_gate_on_gpu(qubits):
+    # Allocate memory on the device
+    d_qubits = cuda.to_device(qubits.astype(np.float64))
+    d_out = cuda.device_array_like(qubits)
+
+    # Configure the kernel
+    threads_per_block = 256
+    blocks_per_grid = (qubits.shape[0] + (threads_per_block - 1)) // threads_per_block
+
+    # Launch the kernel
+    hadamard_gate_kernel[blocks_per_grid, threads_per_block](d_qubits, d_out)
+
+    # Copy the result back to the host
+    return d_out.copy_to_host()
+
+# Test the GPU-accelerated function
+if __name__ == '__main__':
+    # Get information about available GPUs
+    gpus = cuda.gpus
+
+    if len(gpus) == 0:
+        print("No GPU found.")
+    else:
+        for i, gpu in enumerate(gpus):
+            print(f"GPU {i}: {gpu.name.decode('utf-8')}")
+
+    # Get the current CUDA device
+    current_device = cuda.get_current_device()
+
+    # Print information about the current device
+    print("Current CUDA device:", current_device.name.decode('utf-8'))  
+
+    N = 1000000
+    qubits = np.array([[1, 0] for _ in range(N)], dtype=np.float64)  # Initialize qubits to |0⟩
+    result = apply_hadamard_gate_on_gpu(qubits)
+    print(result)
+                        
+                    </code>
+                </pre>
+                <p>Here is an implementation of bell states on the simulated qubits.</p>
+                <pre>
+                    <code>
+import numpy as np
+from numba import cuda
+
+# Define Pauli matrices
+sigma_x = np.array([[0, 1], [1, 0]], dtype=np.complex128)
+sigma_z = np.array([[1, 0], [0, -1]], dtype=np.complex128)
+
+# Define Hadamard gate
+hadamard = (1 / np.sqrt(2)) * np.array([[1, 1], [1, -1]], dtype=np.complex128)
+
+# Define CNOT gate
+cnot = np.array([[1, 0, 0, 0],
+                 [0, 1, 0, 0],
+                 [0, 0, 0, 1],
+                 [0, 0, 1, 0]], dtype=np.complex128)
+
+@cuda.jit
+def bell_state_kernel(qubits, out):
+    tx = cuda.threadIdx.x
+    ty = cuda.blockIdx.x
+    bw = cuda.blockDim.x
+    idx = tx + ty * bw
+    if idx < out.size:
+        # Apply Hadamard gate to first qubit
+        qubits[idx][0] = hadamard[0, 0] * qubits[idx][0] + hadamard[0, 1] * qubits[idx][1]
+        qubits[idx][1] = hadamard[1, 0] * qubits[idx][0] + hadamard[1, 1] * qubits[idx][1]
+
+        # Apply CNOT gate
+        qubits[idx][2] = qubits[idx][0] * cnot[0, 0] + qubits[idx][1] * cnot[0, 1] + qubits[idx][2] * cnot[0, 2] + qubits[idx][3] * cnot[0, 3]
+        qubits[idx][3] = qubits[idx][0] * cnot[1, 0] + qubits[idx][1] * cnot[1, 1] + qubits[idx][2] * cnot[1, 2] + qubits[idx][3] * cnot[1, 3]
+
+        # Reset qubits 0 and 1
+        qubits[idx][0] = 0
+        qubits[idx][1] = 0
+
+        out[idx][0] = qubits[idx][2]
+        out[idx][1] = qubits[idx][3]
+
+# Main function to call the CUDA kernel
+def apply_bell_state_on_gpu(qubits):
+    # Allocate memory on the device
+    d_qubits = cuda.to_device(qubits.astype(np.complex128))
+    d_out = cuda.device_array_like(qubits)
+
+    # Configure the kernel
+    threads_per_block = 256
+    blocks_per_grid = (qubits.shape[0] + (threads_per_block - 1)) // threads_per_block
+
+    # Launch the kernel
+    bell_state_kernel[blocks_per_grid, threads_per_block](d_qubits, d_out)
+
+    # Copy the result back to the host
+    return d_out.copy_to_host()
+
+# Example usage
+N = 2
+qubits = np.array([[1, 0] for _ in range(N)], dtype=np.complex128)
+print("Initial qubits:")
+print(qubits)
+result = apply_bell_state_on_gpu(qubits)
+print(result)
+
+                    </code>
+                </pre>
+                <p>I suppose the next step in correctly modeling circuits as matrices, and performing measurments.</p>
+            </article>
+        </main>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YZC43VJDXN"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-YZC43VJDXN');
+</script>
+
+    </body>
+</html>

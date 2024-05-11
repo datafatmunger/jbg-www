@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+    <head>
+	<title>James Bryan Graves - Personal blog</title> 
+	<meta name="description" content="Executive, coder, manager &amp; technology lead @ SMEs &amp; startups" />
+	<meta name="robots" content="index, archive" />
+    <link rel="stylesheet" type="text/css" href="../style.css">
+    </head>
+    <body>
+        <nav>
+            <ul>
+                <li><a href="../index.html">./</a></li>
+                <li><a href="./index.html">./blog</a></li>
+            </ul>
+        </nav>
+        <main>
+            <p>Personal blog of <a href="../index.html">James Bryan Graves</a></a><br>
+                CTO, coder, manager &amp; technology lead @ SMEs &amp; startups</p>
+            <article>
+                <h2>2024-05-07 (nl_NL)</h2>
+                <p>Snelle en eenvoudige app om de oprichtersvideo's die zijn gemaakt tijdens het Antler-residentieprogramma te beoordelen (up/down te stemmen).<br>
+                <b>App:</b> <a href="https://founderswipe.jamesbryangraves.com/"><i>Founder Swipe</i></a></p>
+                <p>Ik zal ook de backend hier toevoegen, vanwege zijn "unieke persistence layer". 🤣</p>
+                <pre>
+                    <code>
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+
+const app = express();
+const port = 3333;
+
+app.use(express.urlencoded({ extended: true }));
+
+const directoryPath = 'public/videos';
+
+let fileNames;
+fs.readdir(directoryPath, (err, files) => {
+  fileNames = files.filter(file => fs.statSync(path.join(directoryPath, file)).isFile());
+  console.log(fileNames);
+});
+    
+app.set('view engine', 'pug');
+app.use(express.static('public'));
+
+function writeVotes() {
+  fs.writeFileSync('data.json', JSON.stringify(votes, null, 2));
+}
+
+function readVotes() {
+  // Reading JSON file
+  fs.readFile('data.json', 'utf8', (err, jsonString) => {
+    if (err) {
+      console.log('Error reading file:', err);
+      return;
+    }
+
+    try {
+      votes = JSON.parse(jsonString);
+      console.log('Data read from file:', votes);
+    } catch (err) {
+      console.log('Error parsing JSON string:', err);
+    }
+  });
+}
+
+let votes = readVotes();
+
+function getVideo() {
+  const randomIndex = Math.floor(Math.random() * fileNames.length); 
+  return fileNames[randomIndex];
+}
+
+app.get('/', (req, res) => {
+  let video = getVideo();
+  res.render('index', { name: video, url: 'videos/' + video });
+});
+
+app.get('/leaders', (req, res) => {
+  // Create items array
+  var leaders = Object.keys(votes).map(function(key) {
+    return [key, votes[key]];
+  });
+
+  // Sort the array based on the second element
+  leaders.sort(function(first, second) {
+    return second[1] - first[1];
+  });
+
+  res.render('leaders', { leaders });
+});
+
+app.post('/up', (req, res) => {
+  const videoName = req.body.videoName;
+  if(votes[videoName])
+    votes[videoName] = votes[videoName] + 1;
+  else
+    votes[videoName] = 1;
+  console.log('video votes: ' + votes[videoName]);
+  writeVotes();
+  let video = getVideo();
+  res.render('index', { name: video, url: 'videos/' + video });
+});
+
+app.post('/down', (req, res) => {
+  const videoName = req.body.videoName;
+  if(votes[videoName])
+    votes[videoName] = votes[videoName] - 1;
+  else
+    votes[videoName] = 0;
+  writeVotes();
+  console.log('video votes: ' + votes[videoName]);
+  let video = getVideo();
+  res.render('index', { name: video, url: 'videos/' + video });
+});
+
+app.listen(port, () => {
+  console.log(`Example app listening on port ${port}`);
+});
+                    </code>
+                </pre>
+            </article>
+        </main>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YZC43VJDXN"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-YZC43VJDXN');
+</script>
+
+    </body>
+</html>
