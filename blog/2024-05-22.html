@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+    <head>
+	<title>James Bryan Graves - Personal blog</title> 
+	<meta name="description" content="Executive, coder, manager &amp; technology lead @ SMEs &amp; startups" />
+	<meta name="robots" content="index, archive" />
+    <link rel="stylesheet" type="text/css" href="../style.css">
+    </head>
+    <body>
+        <nav>
+            <ul>
+                <li><a href="../index.html">./</a></li>
+                <li><a href="./index.html">./blog</a></li>
+            </ul>
+        </nav>
+        <main>
+            <p>Personal blog of <a href="../index.html">James Bryan Graves</a></a><br>
+                CTO, coder, manager &amp; technology lead @ SMEs &amp; startups</p>
+            <article>
+                <h2>2024-05-22 (en_US)</h2>
+                <p>I created a proof-of-concept (POC) Discord bot attached to OpenAI's GPT 3.5/4 in the context of the Antler residency.</p>
+                <pre>
+                    <code>
+# bot.py
+
+import asyncio
+import os
+import discord
+from urllib.request import urlopen
+import json
+import sys
+from datetime import datetime
+from openai import OpenAI
+
+TOKEN = sys.argv[1]
+CHANNEL_ID = '...'
+client = OpenAI(api_key="...")
+
+# Dictionary to store conversation history for each channel
+conversation_history = {}
+dm_sent_users = set()
+
+with open('prompt.txt', 'r') as prompt_file:
+    prompt_content = prompt_file.read()
+
+def get_openai_response(msg):
+    channel_id = msg.channel.id
+
+    # Initialize history for the channel if not already present
+    if channel_id not in conversation_history:
+        conversation_history[channel_id] = []
+
+    # Add the latest message to the history
+    conversation_history[channel_id].append(f"{msg.author.name}: {msg.content}")
+
+    # Keep the history length reasonable
+    if len(conversation_history[channel_id]) > 20:  # Keep the last 20 messages
+        conversation_history[channel_id] = conversation_history[channel_id][-20:]
+    # Create the prompt by joining the conversation history
+    prompt = prompt_content+ "\n".join(conversation_history[channel_id])
+
+    print("prompt: " + prompt)
+
+    print("get_response: " + msg.content)
+    completion = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        temperature=0.2,
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": msg.content},
+        ],
+    )
+    print(completion)
+    return completion.choices[0].message.content
+
+intents = discord.Intents.default()
+intents.message_content = True
+bot = discord.Client(intents=intents)
+
+@bot.event
+async def on_ready():
+    # CREATES A COUNTER TO KEEP TRACK OF HOW MANY GUILDS / SERVERS THE BOT IS CONNECTED TO.
+    guild_count = 0
+
+    # LOOPS THROUGH ALL THE GUILD / SERVERS THAT THE BOT IS ASSOCIATED WITH.
+    for guild in bot.guilds:
+        # PRINT THE SERVER'S ID AND NAME.
+        print(f"- {guild.id} (name: {guild.name})")
+
+        # INCREMENTS THE GUILD COUNTER.
+        guild_count = guild_count + 1
+
+    # PRINTS HOW MANY GUILDS / SERVERS THE BOT IS IN.
+    print("SampleDiscordBot is in " + str(guild_count) + " guilds.")
+
+# # EVENT LISTENER FOR WHEN A NEW MESSAGE IS SENT TO A CHANNEL.
+@bot.event
+async def on_message(msg):
+    # Ignore your own messages - JBG
+    if msg.author == bot.user:
+        return
+    # Ignore messages from other bots - JBG
+    elif msg.author.bot:
+        return
+    # Handle DMs - JBG
+    elif isinstance(msg.channel, discord.DMChannel):
+        resp = get_openai_response(msg)
+        await msg.channel.send(resp)
+    # Handle messages in a guild - JBG
+    else:
+        if msg.author.id not in dm_sent_users:
+            try:
+                await msg.author.send("Maybe you prefer to chat here in private?")
+                dm_sent_users.add(msg.author.id)
+            except discord.Forbidden:
+                await msg.channel.send(
+                    f"Cannot send a DM to {msg.author.name}. They might have DMs disabled or are not accepting messages from non-friends. "
+                    f"Please ensure your privacy settings allow messages from server members or add the bot as a friend."
+                )
+                return
+        resp = get_openai_response(msg)
+        await msg.channel.send(resp)
+
+bot.run(TOKEN)   
+                    </code>
+                </pre>
+            </article>
+        </main>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YZC43VJDXN"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-YZC43VJDXN');
+</script>
+
+    </body>
+</html>

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+    <head>
+	<title>James Bryan Graves - Personal blog</title> 
+	<meta name="description" content="Executive, coder, manager &amp; technology lead @ SMEs &amp; startups" />
+	<meta name="robots" content="index, archive" />
+    <link rel="stylesheet" type="text/css" href="../style.css">
+    </head>
+    <body>
+        <nav>
+            <ul>
+                <li><a href="../index.html">./</a></li>
+                <li><a href="./index.html">./blog</a></li>
+            </ul>
+        </nav>
+        <main>
+            <p>Personal blog of <a href="../index.html">James Bryan Graves</a></a><br>
+                CTO, coder, manager &amp; technology lead @ SMEs &amp; startups</p>
+            <article>
+                <h2>2024-05-24 (nl_NL)</h2>
+                <p>Voorbeeld van Quantum Teleportation</p>
+                <pre>
+                    <code>
+%matplotlib inline
+from qiskit import QuantumCircuit, transpile
+from qiskit.providers.basic_provider import BasicSimulator
+from qiskit.visualization import plot_histogram
+
+from math import asin, sqrt
+
+qc = QuantumCircuit(3,3)
+
+# QUBIT ORDERING
+# q0 = State |psi> that we want to teleport
+# q1 = Alice's half of the Bell pair
+# q2 = Bob's half of the Bell pair, the destination of the teleportation
+
+# ========================
+# Step 0: Create the state to be teleported in qubit 0
+qc.x(0) # qubit 0 is now in state |1>, and this is the state that we want to teleport
+
+qc.barrier() # just a visual aid
+
+# ========================
+# Step 1: create an entangled Bell pair between Alice and Bob (qubits 1 and 2)
+qc.h(1)
+qc.cx(1,2)
+
+qc.barrier() # just a visual aid
+
+# ========================
+# Step 2: Alice applies a series of operations 
+# between the state to teleport (qubit 0) and her half of the Bell pair (qubit 1)
+qc.cx(0,1)
+qc.h(0)
+
+qc.barrier() # just a visual aid
+
+# ========================
+# Step 3: Alice measures both qubits 0 and 1
+qc.measure([0, 1], [0, 1]) # results stored in classical bits 0 and 1, respectively
+
+qc.barrier() # just a visual aid
+
+# ========================
+# Step 4: Now that Alice has measured the two qubits, their states have collapsed to 0 and 1. 
+# Bob can do operations conditioned on these qubits to his half of the Bell pair
+# Note that while we're conditioning Bob's operation on the collapsed qubits 0 and 1, we can
+# do teleportation over long distances by transmitting the classical information in classical bits 0 and 1
+qc.cx(1, 2)
+qc.cz(0, 2)
+
+# Step 5: Done! Measure Bob's qubit to find out what state it is in
+qc.measure([2], [2])
+
+%matplotlib inline
+qc.draw(output='mpl')
+
+# Specify the backend (the simulator)
+simulator = BasicSimulator()
+
+# Transpile the circuit for the simulator
+compiled_circuit = transpile(qc, simulator)
+
+# Run the compiled circuit
+job = simulator.run(compiled_circuit)
+
+# Get the result
+result = job.result()
+
+# Print the counts
+print(result.get_counts())
+
+# Plot the histogram
+plot_histogram(result.get_counts())
+                    </code>
+                </pre>
+            </article>
+        </main>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YZC43VJDXN"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-YZC43VJDXN');
+</script>
+
+    </body>
+</html>

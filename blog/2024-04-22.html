@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+    <head>
+	<title>James Bryan Graves - Personal blog</title> 
+	<meta name="description" content="Executive, coder, manager &amp; technology lead @ SMEs &amp; startups" />
+	<meta name="robots" content="index, archive" />
+    <link rel="stylesheet" type="text/css" href="../style.css">
+    </head>
+    <body>
+        <nav>
+            <ul>
+                <li><a href="../index.html">./</a></li>
+                <li><a href="./index.html">./blog</a></li>
+            </ul>
+        </nav>
+        <main>
+            <p>Personal blog of <a href="../index.html">James Bryan Graves</a></a><br>
+                CTO, coder, manager &amp; technology lead @ SMEs &amp; startups</p>
+            <article>
+                <h2>2024-04-22 (nl_NL)</h2>
+                <p>QDC-implementatie, superdense codering communiceert een aantal klassieke bits informatie door slechts een kleiner aantal qubits te verzenden.</p>
+                <pre>
+                    <code>
+#importing neccessary modules
+from qiskit import QuantumCircuit, transpile
+from qiskit.providers.basic_provider import BasicSimulator
+from qiskit.visualization import plot_histogram
+
+#specify the bits to be transmitted
+c = "0"
+d = "1"
+
+#creating Two Quantum Bits Circuit
+qc = QuantumCircuit(2)
+
+# Prepare ebit used for superdense coding
+qc.h(0)
+qc.cx(0, 1)
+qc.barrier()
+
+# Alice's operations
+if c == "1":
+    qc.x(0)
+if d == "1":
+    qc.z(0)
+qc.barrier()
+
+# Bob's actions
+qc.cx(0, 1)
+qc.h(0)
+
+#measure it
+qc.measure_all()
+
+#draw the circuit
+qc.draw(output='mpl', style= 'iqp')
+
+# Specify the backend (the simulator)
+simulator = BasicSimulator()
+
+# Transpile the circuit for the simulator
+compiled_circuit = transpile(qc, simulator)
+
+# Run the compiled circuit
+job = simulator.run(compiled_circuit)
+
+# Get the result
+result = job.result()
+
+# Print the counts
+print(result.get_counts())
+
+# Plot the histogram
+plot_histogram(result.get_counts())
+                    </code>   
+                </pre>
+            </article>
+        </main>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YZC43VJDXN"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-YZC43VJDXN');
+</script>
+
+    </body>
+</html>

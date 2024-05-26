@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+    <head>
+	<title>James Bryan Graves - Personal blog</title> 
+	<meta name="description" content="Executive, coder, manager &amp; technology lead @ SMEs &amp; startups" />
+	<meta name="robots" content="index, archive" />
+    <link rel="stylesheet" type="text/css" href="../style.css">
+    </head>
+    <body>
+        <nav>
+            <ul>
+                <li><a href="../index.html">./</a></li>
+                <li><a href="./index.html">./blog</a></li>
+            </ul>
+        </nav>
+        <main>
+            <p>Personal blog of <a href="../index.html">James Bryan Graves</a></a><br>
+                CTO, coder, manager &amp; technology lead @ SMEs &amp; startups</p>
+            <article>
+                <h2>2024-05-21 (nl_NL)</h2>
+                <p>Voorbeeld van een "Quantum cryptographic key exchange protocal", BBM92.</p>
+                <pre>
+                    <code>
+# This ensures the circuits and visualizations are displayed in a Jupyter notebook
+%matplotlib inline
+
+# Imports of the Qiskit basic functionalities
+from qiskit import QuantumCircuit, ClassicalRegister, QuantumRegister
+from qiskit.primitives import Sampler
+from qiskit.quantum_info import Statevector, random_statevector, partial_trace
+from qiskit.visualization import plot_distribution, plot_bloch_multivector
+import random
+
+def create_bell_pair():
+    qc = QuantumCircuit(2, 2)
+    qc.h(0)  # Hadamard gate on qubit 0
+    qc.cx(0, 1)  # CNOT gate with control qubit 0 and target qubit 1
+    return qc
+
+def measure_in_random_basis(qc, qubit, classical_bit, basis):
+    if basis == 'X':
+        qc.h(qubit)
+    qc.measure(qubit, classical_bit)
+    
+def bbm92_protocol(num_bits):
+    alice_basis_choices = [random.choice(['X', 'Z']) for _ in range(num_bits)]
+    bob_basis_choices = [random.choice(['X', 'Z']) for _ in range(num_bits)]
+    
+    alice_bits = []
+    bob_bits = []
+    
+    for alice_basis, bob_basis in zip(alice_basis_choices, bob_basis_choices):
+        # Create Bell pair
+        qc = create_bell_pair()
+        
+        # Measure Alice's qubit in her chosen basis
+        measure_in_random_basis(qc, 0, 0, alice_basis)
+        
+        # Measure Bob's qubit in his chosen basis
+        measure_in_random_basis(qc, 1, 1, bob_basis)
+        
+        # Simulate the circuit
+        job = Sampler().run(qc, shots = 10)
+
+        # Collect the results from the job
+        result = job.result()
+        # Obtain the counts from the results
+        statistics = result.quasi_dists[0].binary_probabilities()
+
+        max_key = max(statistics, key=statistics.get)
+        
+        alice_bits.append(int(max_key[0]))
+        bob_bits.append(int(max_key[1]))
+    
+    return alice_bits, bob_bits, alice_basis_choices, bob_basis_choices
+
+num_bits = 100  # Example number of bits to generate
+alice_bits, bob_bits, alice_bases, bob_bases = bbm92_protocol(num_bits)
+
+print("Alice's bits:", alice_bits)
+print("Bob's bits:", bob_bits)
+print("Alice's bases:", alice_bases)
+print("Bob's bases:", bob_bases)
+                    </code>
+                </pre>
+            </article>
+        </main>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YZC43VJDXN"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-YZC43VJDXN');
+</script>
+
+    </body>
+</html>
