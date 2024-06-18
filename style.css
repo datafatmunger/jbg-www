@@ -3,7 +3,11 @@
     padding: 8px;
 }
 
-h2, h3 {
+h2 {
+    padding-top: 34px;
+}
+
+h3 {
     padding-top: 55px;
 }
 
