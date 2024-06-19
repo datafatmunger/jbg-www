@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+    <head>
+	<title>James Bryan Graves - Personal blog</title> 
+	<meta name="description" content="Computer Science, Quantum Information Science, Software development & engineering" />
+	<meta name="robots" content="index, archive" />
+    <link rel="stylesheet" type="text/css" href="../style.css">
+    </head>
+    <body>
+        <nav>
+            <ul>
+                <li><a href="../index.html">./</a></li>
+                <li><a href="./index.html">./blog</a></li>
+            </ul>
+        </nav>
+        <main>
+            <p>Personal blog of <a href="../index.html">James Bryan Graves</a><br>
+                Computer science (CS), quantum information science (QIS),<br>
+                &amp; software development &amp; engineering (SDE)<br>
+            <article><h2 id="qisqcs-simulator-in-nvidia-cuda-p.3-en_us">2024-06-11 QIS/QCS
+Simulator in Nvidia CUDA, p.3 (en_US)</h2>
+<h2 id="where-i-left-off-previously">Where I left off previously</h2>
+<p>Something is wrong with how I’m generating random numbers with CUDA.
+Will need to visit this later.</p>
+<p>Maybe also with normalization? Not sure CUDA is handling the
+imaginary part correctly. Will also check this.</p>
+<h2 id="fixed">Fixed</h2>
+<p>Leveraging <code>time(NULL)</code> is just executing too quickly. I
+simply just added the “shot” interative counter <code>i</code> to the
+seed, and it seems to work.</p>
+<pre><code>
+#include &lt;cuda_runtime.h&gt;
+#include &lt;curand_kernel.h&gt;
+#include &lt;cuComplex.h&gt;
+
+#include &lt;cmath&gt;
+#include &lt;iostream&gt;
+#include &lt;time.h&gt;
+
+// Error checking macro
+#define cudaCheckError() {                                           \
+    cudaError_t e=cudaGetLastError();                                \
+    if(e!=cudaSuccess) {                                             \
+        std::cerr &lt;&lt; &quot;Cuda failure &quot; &lt;&lt; __FILE__ &lt;&lt; &quot;:&quot; &lt;&lt; __LINE__; \
+        std::cerr &lt;&lt; &quot; &#39;&quot; &lt;&lt; cudaGetErrorString(e) &lt;&lt; &quot;&#39;\n&quot;;         \
+        exit(EXIT_FAILURE);                                          \
+    }                                                                \
+}
+
+// Kernel to normalize the statevector
+__global__ void normalize(cuFloatComplex* statevector, int len) {
+    __shared__ float norm;
+    if (threadIdx.x == 0) norm = 0.0f;
+    __syncthreads();
+
+    int idx = threadIdx.x + blockDim.x * blockIdx.x;
+    if (idx &lt; len) {
+        atomicAdd(&amp;norm, cuCabsf(statevector[idx]) * cuCabsf(statevector[idx]));
+    }
+    __syncthreads();
+
+    if (threadIdx.x == 0) norm = sqrtf(norm);
+    __syncthreads();
+
+    if (idx &lt; len) {
+        statevector[idx] = make_cuFloatComplex(cuCrealf(statevector[idx]) / norm, cuCimagf(statevector[idx]) / norm);
+    }
+}
+
+// Kernel to compute the probabilities
+__global__ void compute_probabilities(float* probabilities, cuFloatComplex* statevector, int len) {
+    int idx = threadIdx.x + blockDim.x * blockIdx.x;
+    if (idx &lt; len) {
+        probabilities[idx] = cuCabsf(statevector[idx]) * cuCabsf(statevector[idx]);
+    }
+}
+
+// Kernel to measure the statevector
+__global__ void measure(int* result, float* probabilities, int len, unsigned long long seed) {
+    curandState state;
+    curand_init(seed, 0, 0, &amp;state);
+    float random_number = curand_uniform(&amp;state);
+
+    float cumulative_probability = 0.0f;
+    for (int i = 0; i &lt; len; ++i) {
+        cumulative_probability += probabilities[i];
+        if (random_number &lt; cumulative_probability) {
+            *result = i;
+            break;
+        }
+    }
+}
+
+void checkNormalization(cuFloatComplex* statevector, int len) {
+    float norm = 0.0;
+    for (int i = 0; i &lt; len; ++i) {
+        norm += cuCabsf(statevector[i]) * cuCabsf(statevector[i]);
+    }
+    if (fabs(norm - 1.0) &gt; 1e-6) {
+        std::cerr &lt;&lt; &quot;Statevector must be normalized\n&quot;;
+        exit(EXIT_FAILURE);
+    }
+}
+
+int binaryStringToInt(const std::string&amp; binaryStr) {
+    int result = 0;
+    for (char bit : binaryStr) {
+        result &lt;&lt;= 1; // shift left by 1 bit
+        result += (bit - &#39;0&#39;); // add the current bit
+    }
+    return result;
+}
+
+int test_measure(int shot) {
+    int num_qubits = 2;
+    int len = 1 &lt;&lt; num_qubits;
+
+    cuFloatComplex h_statevector[] = {
+        make_cuFloatComplex(0.2, 0.0), make_cuFloatComplex(0.2, 0.0),
+        make_cuFloatComplex(0.6, 0.0), make_cuFloatComplex(0.2, 0.0)
+    };
+
+    // Calculate the norm of the statevector
+    float norm = 0.0f;
+    for (int i = 0; i &lt; len; ++i) {
+        float real_part = cuCrealf(h_statevector[i]);
+        float imag_part = cuCimagf(h_statevector[i]);
+        norm += real_part * real_part + imag_part * imag_part;
+    }
+    norm = sqrtf(norm);
+
+    // Normalize the statevector
+    for (int i = 0; i &lt; len; ++i) {
+        float real_part = cuCrealf(h_statevector[i]);
+        float imag_part = cuCimagf(h_statevector[i]);
+        h_statevector[i] = make_cuFloatComplex(real_part / norm, imag_part / norm);
+    }
+
+    // Verify normalization
+    float sum = 0.0f;
+    for (int i = 0; i &lt; len; ++i) {
+        float mag = cuCabsf(h_statevector[i]);
+        sum += mag * mag;
+    }
+
+    // Device memory allocations
+    cuFloatComplex* d_statevector;
+    float* d_probabilities;
+    int* d_result;
+    // Allocate memory for random number generator states
+    //curandState *d_states;
+    
+    cudaMalloc(&amp;d_statevector, len * sizeof(cuFloatComplex));
+    cudaMalloc(&amp;d_probabilities, len * sizeof(float));
+    cudaMalloc(&amp;d_result, sizeof(int));
+    //cudaMalloc((void **)&amp;d_states, len * sizeof(curandState));
+
+    // Copy statevector to device
+    cudaMemcpy(d_statevector, h_statevector, len * sizeof(cuFloatComplex), cudaMemcpyHostToDevice);
+
+    // Kernel launches
+    int blockSize = 256;
+    int gridSize = (len + blockSize - 1) / blockSize;
+
+    // Generate a random seed
+    unsigned long long seed = time(NULL) + shot;
+
+    normalize&lt;&lt;&lt;gridSize, blockSize&gt;&gt;&gt;(d_statevector, len);
+    cudaCheckError();
+
+    compute_probabilities&lt;&lt;&lt;gridSize, blockSize&gt;&gt;&gt;(d_probabilities, d_statevector, len);
+    cudaCheckError();
+
+    measure&lt;&lt;&lt;1, 1&gt;&gt;&gt;(d_result, d_probabilities, len, seed);
+    cudaCheckError();
+
+    // Copy result back to host
+    int h_result;
+    cudaMemcpy(&amp;h_result, d_result, sizeof(int), cudaMemcpyDeviceToHost);
+
+    // Convert result to bitstring
+    std::string bitstring;
+    for (int i = num_qubits - 1; i &gt;= 0; --i) {
+        bitstring += ((h_result &gt;&gt; i) &amp; 1) ? &#39;1&#39; : &#39;0&#39;;
+    }
+
+    // Clean up
+    cudaFree(d_statevector);
+    cudaFree(d_probabilities);
+    cudaFree(d_result);
+
+    return binaryStringToInt(bitstring);
+}
+
+
+int main() {
+    int counts[] = {0, 0, 0, 0};
+    int shots = 1000;
+    for(int shot = 0; shot &lt; shots; shot++) {
+        int result = test_measure(shot);
+        counts[result] += 1;
+    }
+    std::cout &lt;&lt; &quot;00: &quot; &lt;&lt; counts[0] &lt;&lt; &quot; &quot; &lt;&lt; 1.0f * counts[0] / shots &lt;&lt;std::endl;
+    std::cout &lt;&lt; &quot;01: &quot; &lt;&lt; counts[1] &lt;&lt; &quot; &quot; &lt;&lt; 1.0f * counts[1] / shots &lt;&lt;std::endl;
+    std::cout &lt;&lt; &quot;10: &quot; &lt;&lt; counts[2] &lt;&lt; &quot; &quot; &lt;&lt; 1.0f * counts[2] / shots &lt;&lt;std::endl;
+    std::cout &lt;&lt; &quot;11: &quot; &lt;&lt; counts[3] &lt;&lt; &quot; &quot; &lt;&lt; 1.0f * counts[3] / shots &lt;&lt;std::endl;
+}
+
+</code></pre>
+<h2 id="broken">Broken</h2>
+<p>Statevecter is still wrong in the end. Will need to fix this. Also
+not sure I’m totally happy with what I’m doing on device vs. host, will
+think a bit deeper on this.</p>
+</article>
+</main>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YZC43VJDXN"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-YZC43VJDXN');
+</script>
+
+    </body>
+</html>

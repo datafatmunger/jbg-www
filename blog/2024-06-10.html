@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+    <head>
+	<title>James Bryan Graves - Personal blog</title> 
+	<meta name="description" content="Computer Science, Quantum Information Science, Software development & engineering" />
+	<meta name="robots" content="index, archive" />
+    <link rel="stylesheet" type="text/css" href="../style.css">
+    </head>
+    <body>
+        <nav>
+            <ul>
+                <li><a href="../index.html">./</a></li>
+                <li><a href="./index.html">./blog</a></li>
+            </ul>
+        </nav>
+        <main>
+            <p>Personal blog of <a href="../index.html">James Bryan Graves</a><br>
+                Computer science (CS), quantum information science (QIS),<br>
+                &amp; software development &amp; engineering (SDE)<br>
+            <article><h2 id="qisqcs-simulator-in-nvidia-cuda-p.1-en_us">2024-06-10 QIS/QCS
+Simulator in Nvidia CUDA, p.1 (en_US)</h2>
+<p>Working on a quantum universal gate simulator for educational
+purposes, non-production ready, designed to run on Nvidia hardware via
+CUDA.</p>
+<p>Source code will be developing on <a
+href="https://github.com/datafatmunger/jbg-qcu">Github</a>, with some of
+the process documented on this blog.</p>
+<p>This is a simple CUDA PoC: simply adding 2 numbers together</p>
+<pre><code>
+// add.cu
+
+#include &lt;iostream&gt;
+#include &lt;cuda_runtime.h&gt;
+
+// CUDA kernel function to add two numbers
+__global__ void add(int* a, int* b, int* c) {
+    *c = *a + *b;
+}
+
+int main() {
+    // Host variables
+    int a = 3;
+    int b = 5;
+    int c = 0;
+
+    // Device variables
+    int *d_a, *d_b, *d_c;
+
+    // Allocate memory on the device
+    cudaMalloc((void**)&amp;d_a, sizeof(int));
+    cudaMalloc((void**)&amp;d_b, sizeof(int));
+    cudaMalloc((void**)&amp;d_c, sizeof(int));
+
+    // Copy host variables to device
+    cudaMemcpy(d_a, &amp;a, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, &amp;b, sizeof(int), cudaMemcpyHostToDevice);
+
+    // Launch the kernel with one block and one thread
+    add&lt;&lt;&lt;1, 1&gt;&gt;&gt;(d_a, d_b, d_c);
+
+    // Copy the result back to the host
+    cudaMemcpy(&amp;c, d_c, sizeof(int), cudaMemcpyDeviceToHost);
+
+    // Print the result
+    std::cout &lt;&lt; &quot;Result: &quot; &lt;&lt; c &lt;&lt; std::endl;
+
+    // Free device memory
+    cudaFree(d_a);
+    cudaFree(d_b);
+    cudaFree(d_c);
+
+    return 0;
+}
+
+</code></pre>
+<h3 id="compiling">Compiling</h3>
+<p>Normally you would compile as follows</p>
+<pre><code>
+&gt; nvcc -o add add.cu
+
+</code></pre>
+<p>The following ERROR occurs</p>
+<pre><code>
+nvcc fatal   : Cannot find compiler &#39;cl.exe&#39; in PATH
+
+</code></pre>
+<p>Added the following to the PATH environment variable</p>
+<pre><code>
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.40.33807\bin\Hostx64\x64
+
+</code></pre>
+<p>The following error occurs</p>
+<pre><code>
+C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.3\include\crt/host_config.h(164): fatal error C1189: #error:  -- unsupported Microsoft Visual Studio version! Only the versions between 2017 and 2022 (inclusive) are supported! The nvcc flag &#39;-allow-unsupported-compiler&#39; can be used to override this version check; however, using an unsupported host compiler may cause compilation failure or incorrect run time execution. Use at your own risk.
+
+</code></pre>
+<p>Just take the advice</p>
+<pre><code>
+$ nvcc -o add add.cu -allow-unsupported-compiler
+
+</code></pre>
+<p>This successfully compiles and runs.</p>
+<pre><code>
+&gt; .\add
+
+</code></pre>
+<h3 id="nvidia-cuda-version">Nvidia CUDA version</h3>
+<p>At the time of writing my Nvidia CUDA toolchain</p>
+<pre><code>
+&gt; nvcc --versionnvcc --version
+
+</code></pre>
+<p>Output:</p>
+<pre><code>
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2023 NVIDIA Corporation
+Built on Wed_Nov_22_10:30:42_Pacific_Standard_Time_2023
+Cuda compilation tools, release 12.3, V12.3.107
+Build cuda_12.3.r12.3/compiler.33567101_0
+
+</code></pre>
+<h3 id="upgrading-to-cuda-to-12.5">Upgrading to CUDA to 12.5</h3>
+<p>Upgrading 12.3 → 12.5 fixed the need for
+<code>-allow-unsupported-compiler</code></p>
+<pre><code>
+&gt; nvcc --versionnvcc --version
+
+</code></pre>
+<p>Output:</p>
+<pre><code>
+nvcc: NVIDIA (R) Cuda compiler driver
+Copyright (c) 2005-2024 NVIDIA Corporation
+Built on Wed_Apr_17_19:36:51_Pacific_Daylight_Time_2024
+Cuda compilation tools, release 12.5, V12.5.40
+Build cuda_12.5.r12.5/compiler.34177558_0
+
+</code></pre>
+<h2 id="section"></h2>
+</article>
+</main>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YZC43VJDXN"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-YZC43VJDXN');
+</script>
+
+    </body>
+</html>

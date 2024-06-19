@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html>
+    <head>
+	<title>James Bryan Graves - Personal blog</title> 
+	<meta name="description" content="Computer Science, Quantum Information Science, Software development & engineering" />
+	<meta name="robots" content="index, archive" />
+    <link rel="stylesheet" type="text/css" href="../style.css">
+    </head>
+    <body>
+        <nav>
+            <ul>
+                <li><a href="../index.html">./</a></li>
+                <li><a href="./index.html">./blog</a></li>
+            </ul>
+        </nav>
+        <main>
+            <p>Personal blog of <a href="../index.html">James Bryan Graves</a><br>
+                Computer science (CS), quantum information science (QIS),<br>
+                &amp; software development &amp; engineering (SDE)<br>
+            <article><h2 id="qisqcs-simulator-in-nvidia-cuda-p.2-en_us">2024-06-11 QIS/QCS
+Simulator in Nvidia CUDA, p.2 (en_US)</h2>
+<p>Working on a quantum universal gate simulator for educational
+purposes, non-production ready, designed to run on Nvidia hardware via
+CUDA.</p>
+<p>Nvidia also has the <a
+href="https://developer.nvidia.com/cuda-q">CUDA-Q project</a>, something
+I’m excited to dig into, but I’m more interested in practicing CUDA,
+quantum computing, &amp; linear algebra from a more raw perspective.</p>
+<p>Source code will be developing on <a
+href="https://github.com/datafatmunger/jbg-qcu">Github</a>, with some of
+the process documented on this blog.</p>
+<p>Said “Q Coo”, like “cuckoo” (will create a cute bird logo later). Is
+a POC, non-production, quantum universal gate simulator designed to run
+on Nvidia hardward via CUDA. Mainly to assist in educating myself on
+quantum computer simulation.</p>
+<h3 id="why-nvidia">Why Nvidia?</h3>
+<p>I saw Nvidia surpassed Apple in market cap?! Maybe not a bad time to
+do linear algebra on Nvidia hardware.</p>
+<p>I also really have a ♥ affair with my GPU (RTX 3070), which I aquired
+during the pandemic &amp; supply chain crisis, from a scalper, to whom I
+drove 2 hours, &amp; paid way too much money (€1500).</p>
+<h3 id="matrix-vector-multiplication-y-a-x">Matrix / vector
+multiplication (y = A * x)</h3>
+<p>Made some progress yesterday with the following.</p>
+<pre><code>
+#include &lt;iostream&gt;
+#include &lt;cuda_runtime.h&gt;
+
+#define BLOCK_SIZE 16
+
+// CUDA kernel for matrix-vector multiplication
+__global__ void matVecMulKernel(float *A, float *x, float *y, int rows, int cols) {
+    int row = blockIdx.y * blockDim.y + threadIdx.y;
+    if (row &lt; rows) {
+        float sum = 0.0f;
+        for (int col = 0; col &lt; cols; ++col) {
+            sum += A[row * cols + col] * x[col];
+        }
+        y[row] = sum;
+    }
+}
+
+void matVecMul(float *h_A, float *h_x, float *h_y, int rows, int cols) {
+    float *d_A, *d_x, *d_y;
+
+    // Allocate memory on the device
+    cudaMalloc((void**)&amp;d_A, rows * cols * sizeof(float));
+    cudaMalloc((void**)&amp;d_x, cols * sizeof(float));
+    cudaMalloc((void**)&amp;d_y, rows * sizeof(float));
+
+    // Copy data from host to device
+    cudaMemcpy(d_A, h_A, rows * cols * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_x, h_x, cols * sizeof(float), cudaMemcpyHostToDevice);
+
+    // Define the grid and block dimensions
+    dim3 dimBlock(1, BLOCK_SIZE);
+    dim3 dimGrid(1, (rows + BLOCK_SIZE - 1) / BLOCK_SIZE);
+
+    // Launch the kernel
+    matVecMulKernel&lt;&lt;&lt;dimGrid, dimBlock&gt;&gt;&gt;(d_A, d_x, d_y, rows, cols);
+
+    // Copy the result back to the host
+    cudaMemcpy(h_y, d_y, rows * sizeof(float), cudaMemcpyDeviceToHost);
+
+    // Clean up
+    cudaFree(d_A);
+    cudaFree(d_x);
+    cudaFree(d_y);
+}
+
+int main() {
+    int rows = 4;
+    int cols = 4;
+
+    // Host input matrices
+    float h_A[] = {
+        1,  0,  1,  0,
+        0,  1,  0,  1,
+        1,  0, -1,  0,
+        0,  1,  0, -1};
+    float h_x[] = {1, 0, 0, 0};
+    float h_y[4];
+
+    // Matrix-vector multiplication
+    matVecMul(h_A, h_x, h_y, rows, cols);
+
+    // Print the result
+    for (int i = 0; i &lt; rows; ++i) {
+        std::cout &lt;&lt; h_y[i] &lt;&lt; &quot; &quot;;
+    }
+    std::cout &lt;&lt; std::endl;
+
+    return 0;
+}
+
+</code></pre>
+<h3 id="tensor-product-a-b">Tensor Product (A ⊗ B)</h3>
+<pre><code>
+#include &lt;cuda_runtime.h&gt;
+#include &lt;iostream&gt;
+
+__global__ void tensorProductKernel(float* d_A, float* d_B, float* d_C, int aRows, int aCols, int bRows, int bCols) {
+    int i = blockIdx.y * blockDim.y + threadIdx.y;
+    int j = blockIdx.x * blockDim.x + threadIdx.x;
+    int totalRows = aRows * bRows;
+    int totalCols = aCols * bCols;
+
+    if (i &lt; totalRows &amp;&amp; j &lt; totalCols) {
+        int rowA = i / bRows;
+        int colA = j / bCols;
+        int rowB = i % bRows;
+        int colB = j % bCols;
+        d_C[i * totalCols + j] = d_A[rowA * aCols + colA] * d_B[rowB * bCols + colB];
+    }
+}
+
+void tensorProduct(float* h_A, float* h_B, float* h_C, int aRows, int aCols, int bRows, int bCols) {
+    int aSize = aRows * aCols * sizeof(float);
+    int bSize = bRows * bCols * sizeof(float);
+    int cSize = aRows * bRows * aCols * bCols * sizeof(float);
+
+    float* d_A;
+    float* d_B;
+    float* d_C;
+
+    cudaMalloc((void**)&amp;d_A, aSize);
+    cudaMalloc((void**)&amp;d_B, bSize);
+    cudaMalloc((void**)&amp;d_C, cSize);
+
+    cudaMemcpy(d_A, h_A, aSize, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, h_B, bSize, cudaMemcpyHostToDevice);
+
+    dim3 threadsPerBlock(16, 16);
+    dim3 numBlocks((aCols * bCols + threadsPerBlock.x - 1) / threadsPerBlock.x, 
+                   (aRows * bRows + threadsPerBlock.y - 1) / threadsPerBlock.y);
+
+    tensorProductKernel&lt;&lt;&lt;numBlocks, threadsPerBlock&gt;&gt;&gt;(d_A, d_B, d_C, aRows, aCols, bRows, bCols);
+
+    cudaMemcpy(h_C, d_C, cSize, cudaMemcpyDeviceToHost);
+
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);
+}
+
+int main() {
+    const int aRows = 2;
+    const int aCols = 2;
+    const int bRows = 2;
+    const int bCols = 2;
+
+    float h_A[aRows * aCols] = {1, 1, 1, -1};
+    float h_B[bRows * bCols] = {1, 0, 0, 1};
+    float h_C[aRows * bRows * aCols * bCols];
+
+    tensorProduct(h_A, h_B, h_C, aRows, aCols, bRows, bCols);
+
+    for (int i = 0; i &lt; aRows * bRows; ++i) {
+        for (int j = 0; j &lt; aCols * bCols; ++j) {
+            std::cout &lt;&lt; h_C[i * aCols * bCols + j] &lt;&lt; &quot; &quot;;
+        }
+        std::cout &lt;&lt; &quot;\n&quot;;
+    }
+
+    return 0;
+}
+
+</code></pre>
+<h3 id="checkpoint-notes">Checkpoint notes</h3>
+<p>Neither of these are handling complex numbers, and I would like to
+pull them into more of a stdlib with a header, and change the prints to
+“tests”.</p>
+<h2 id="source-control">Source control</h2>
+<p>Creating a Github repository for Qcu.</p>
+<h3 id="creating-a-ed25519-ssh-key-on-windows">Creating a ed25519 ssh
+key on Windows</h3>
+<pre><code>    ssh-keygen -t ed25519</code></pre>
+<h3 id="reminder-windows-version-of-cat-is-type">Reminder: Windows
+version of <code>cat</code> is <code>type</code></h3>
+<pre><code>    type .ssh\id_ed25519.pub</code></pre>
+<h2 id="creating-a-markdown-html-pipeline">Creating a markdown → html
+pipeline</h2>
+<p>Ideally I would be able to convert these notes to HTML for my
+blog.</p>
+<p>Created a simple script at <a
+href="https://github.com/datafatmunger/jbg-md2html">Github</a>, but is
+basically just Pandoc</p>
+<pre><code>
+#!/bin/bash
+
+pandoc -o html/$1.html md/$1.md
+
+cat html/header.html html/$1.html html/footer.html &gt; html/tmp.html &amp;&amp; mv html/tmp.html html/$1.html
+
+</code></pre>
+<h2 id="measuring-quantum-state-vectors">Measuring quantum state
+vectors</h2>
+<p>Something is wrong with how I’m generating random numbers with CUDA.
+Will need to visit this later.</p>
+<p>Maybe also with normalization? Not sure CUDA is handling the
+imaginary part correctly. Will also check this.</p>
+<pre><code>
+#include &lt;cuda_runtime.h&gt;
+#include &lt;curand_kernel.h&gt;
+#include &lt;cuComplex.h&gt;
+#include &lt;iostream&gt;
+#include &lt;cmath&gt;
+
+// Error checking macro
+#define cudaCheckError() {                                           \
+    cudaError_t e=cudaGetLastError();                                \
+    if(e!=cudaSuccess) {                                             \
+        std::cerr &lt;&lt; &quot;Cuda failure &quot; &lt;&lt; __FILE__ &lt;&lt; &quot;:&quot; &lt;&lt; __LINE__; \
+        std::cerr &lt;&lt; &quot; &#39;&quot; &lt;&lt; cudaGetErrorString(e) &lt;&lt; &quot;&#39;\n&quot;;         \
+        exit(EXIT_FAILURE);                                          \
+    }                                                                \
+}
+
+__global__ void setup_kernel(curandState *state, unsigned long long seed)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    curand_init(seed, idx, 0, &amp;state[idx]);
+}
+
+__global__ void generate_random_numbers(curandState *state, float *randomNumbers)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    
+    // Generate a random number using the curand_uniform function
+    float randNum = curand_uniform(&amp;state[idx]);
+    
+    // Store the random number in the output array
+    randomNumbers[idx] = randNum;
+}
+
+// Kernel to normalize the statevector
+__global__ void normalize(cuFloatComplex* statevector, int len) {
+    __shared__ float norm;
+    if (threadIdx.x == 0) norm = 0.0f;
+    __syncthreads();
+
+    int idx = threadIdx.x + blockDim.x * blockIdx.x;
+    if (idx &lt; len) {
+        atomicAdd(&amp;norm, cuCabsf(statevector[idx]) * cuCabsf(statevector[idx]));
+    }
+    __syncthreads();
+
+    if (threadIdx.x == 0) norm = sqrtf(norm);
+    __syncthreads();
+
+    if (idx &lt; len) {
+        statevector[idx] = make_cuFloatComplex(cuCrealf(statevector[idx]) / norm, cuCimagf(statevector[idx]) / norm);
+    }
+}
+
+// Kernel to compute the probabilities
+__global__ void compute_probabilities(float* probabilities, cuFloatComplex* statevector, int len) {
+    int idx = threadIdx.x + blockDim.x * blockIdx.x;
+    if (idx &lt; len) {
+        probabilities[idx] = cuCabsf(statevector[idx]) * cuCabsf(statevector[idx]);
+    }
+}
+
+// Kernel to measure the statevector
+__global__ void measure(float *randomNumbers, int* result, float* probabilities, int len, unsigned long long seed) {
+    //int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    //curandState state;
+    //curand_init(seed + idx, 0, 0, &amp;state);
+    //float random_number = curand_uniform(&amp;state);
+
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    
+    // // Generate a random number using the curand_uniform function
+    float random_number = randomNumbers[idx];
+
+    float cumulative_probability = 0.0f;
+    for (int i = 0; i &lt; len; ++i) {
+        cumulative_probability += probabilities[i];
+        if (random_number &lt; cumulative_probability) {
+            *result = i;
+            break;
+        }
+    }
+}
+
+void checkNormalization(cuFloatComplex* statevector, int len) {
+    float norm = 0.0;
+    for (int i = 0; i &lt; len; ++i) {
+        norm += cuCabsf(statevector[i]) * cuCabsf(statevector[i]);
+    }
+    if (fabs(norm - 1.0) &gt; 1e-6) {
+        std::cerr &lt;&lt; &quot;Statevector must be normalized\n&quot;;
+        exit(EXIT_FAILURE);
+    }
+}
+
+int binaryStringToInt(const std::string&amp; binaryStr) {
+    int result = 0;
+    for (char bit : binaryStr) {
+        result &lt;&lt;= 1; // shift left by 1 bit
+        result += (bit - &#39;0&#39;); // add the current bit
+    }
+    return result;
+}
+
+int test_measure() {
+    int num_qubits = 2;
+    int len = 1 &lt;&lt; num_qubits;
+
+    cuFloatComplex h_statevector[] = {
+        make_cuFloatComplex(0.2, 0.0), make_cuFloatComplex(0.2, 0.0),
+        make_cuFloatComplex(0.6, 0.0), make_cuFloatComplex(0.2, 0.0)
+    };
+
+    // Calculate the norm of the statevector
+    float norm = 0.0f;
+    for (int i = 0; i &lt; len; ++i) {
+        float real_part = cuCrealf(h_statevector[i]);
+        float imag_part = cuCimagf(h_statevector[i]);
+        norm += real_part * real_part + imag_part * imag_part;
+    }
+    norm = sqrtf(norm);
+
+    // Normalize the statevector
+    for (int i = 0; i &lt; len; ++i) {
+        float real_part = cuCrealf(h_statevector[i]);
+        float imag_part = cuCimagf(h_statevector[i]);
+        h_statevector[i] = make_cuFloatComplex(real_part / norm, imag_part / norm);
+    }
+
+    // Verify normalization
+    float sum = 0.0f;
+    for (int i = 0; i &lt; len; ++i) {
+        float mag = cuCabsf(h_statevector[i]);
+        sum += mag * mag;
+    }
+
+    // Device memory allocations
+    cuFloatComplex* d_statevector;
+    float* d_probabilities;
+    int* d_result;
+    // Allocate memory for random number generator states
+    curandState *d_states;
+    
+    cudaMalloc(&amp;d_statevector, len * sizeof(cuFloatComplex));
+    cudaMalloc(&amp;d_probabilities, len * sizeof(float));
+    cudaMalloc(&amp;d_result, sizeof(int));
+    cudaMalloc((void **)&amp;d_states, len * sizeof(curandState));
+
+    // Copy statevector to device
+    cudaMemcpy(d_statevector, h_statevector, len * sizeof(cuFloatComplex), cudaMemcpyHostToDevice);
+
+    // Kernel launches
+    int blockSize = 256;
+    int gridSize = (len + blockSize - 1) / blockSize;
+
+    // Generate a random seed
+    unsigned long long seed = time(NULL);
+
+    // Setup the kernel with random states
+    setup_kernel&lt;&lt;&lt;gridSize, blockSize&gt;&gt;&gt;(d_states, seed);
+    cudaCheckError();
+
+    // Allocate memory for the random numbers generated
+    float *randomNumbers;
+    cudaMalloc((void **)&amp;randomNumbers, len * sizeof(float));
+
+    // Generate random numbers using the initialized states
+    generate_random_numbers&lt;&lt;&lt;gridSize, blockSize&gt;&gt;&gt;(d_states, randomNumbers);
+    cudaCheckError();
+
+    normalize&lt;&lt;&lt;gridSize, blockSize&gt;&gt;&gt;(d_statevector, len);
+    cudaCheckError();
+
+    compute_probabilities&lt;&lt;&lt;gridSize, blockSize&gt;&gt;&gt;(d_probabilities, d_statevector, len);
+    cudaCheckError();
+
+    measure&lt;&lt;&lt;1, 1&gt;&gt;&gt;(randomNumbers, d_result, d_probabilities, len, time(NULL));
+    cudaCheckError();
+
+    // Copy the generated random numbers back to the host if needed
+    float *hostRandomNumbers = (float *)malloc(len * sizeof(float));
+    cudaMemcpy(hostRandomNumbers, randomNumbers, len * sizeof(float), cudaMemcpyDeviceToHost);
+
+    for(int i = 0; i &lt; len; i++) {
+        std::cout &lt;&lt; i &lt;&lt; &quot;: &quot; &lt;&lt; hostRandomNumbers[i] &lt;&lt; std::endl;
+    }
+
+    // Copy result back to host
+    int h_result;
+    cudaMemcpy(&amp;h_result, d_result, sizeof(int), cudaMemcpyDeviceToHost);
+
+    // Convert result to bitstring
+    std::string bitstring;
+    for (int i = num_qubits - 1; i &gt;= 0; --i) {
+        bitstring += ((h_result &gt;&gt; i) &amp; 1) ? &#39;1&#39; : &#39;0&#39;;
+    }
+
+    // Clean up
+    cudaFree(d_statevector);
+    cudaFree(d_probabilities);
+    cudaFree(d_result);
+    cudaFree(d_states);
+    cudaFree(randomNumbers);
+
+    free(hostRandomNumbers);
+
+    return binaryStringToInt(bitstring);
+}
+
+
+int main() {
+    int counts[] = {0, 0, 0, 0};
+    int shots = 1000;
+    for(int shot = 0; shot &lt; shots; shot++) {
+        int result = test_measure();
+        counts[result] += 1;
+    }
+    std::cout &lt;&lt; &quot;00: &quot; &lt;&lt; counts[0] &lt;&lt; &quot; &quot; &lt;&lt; 1.0f * counts[0] / shots &lt;&lt;std::endl;
+    std::cout &lt;&lt; &quot;01: &quot; &lt;&lt; counts[1] &lt;&lt; &quot; &quot; &lt;&lt; 1.0f * counts[1] / shots &lt;&lt;std::endl;
+    std::cout &lt;&lt; &quot;10: &quot; &lt;&lt; counts[2] &lt;&lt; &quot; &quot; &lt;&lt; 1.0f * counts[2] / shots &lt;&lt;std::endl;
+    std::cout &lt;&lt; &quot;11: &quot; &lt;&lt; counts[3] &lt;&lt; &quot; &quot; &lt;&lt; 1.0f * counts[3] / shots &lt;&lt;std::endl;
+}
+
+</code></pre>
+</article>
+</main>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-YZC43VJDXN"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-YZC43VJDXN');
+</script>
+
+    </body>
+</html>
